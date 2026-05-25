@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -21,6 +21,14 @@ interface Alert {
 }
 
 export default function AlertsPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse h-40 rounded-xl bg-border/30" />}>
+      <AlertsContent />
+    </Suspense>
+  );
+}
+
+function AlertsContent() {
   const searchParams = useSearchParams();
   const [chatId, setChatId] = useState("");
   const [alerts, setAlerts] = useState<Alert[]>([]);
