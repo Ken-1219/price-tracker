@@ -194,13 +194,15 @@ export async function GET(request: Request) {
       await new Promise((r) => setTimeout(r, 1000));
 
       if (history.length > 0) {
-        const historyRows = history.map((p) => ({
-          gameId: game.id,
-          price: p.price,
-          source: "platprices",
-          recordedAt: new Date(p.date),
-        }));
-        await db.insert(priceHistory).values(historyRows);
+        const historyRows = history
+          .filter((p) => !isNaN(new Date(p.date).getTime()))
+          .map((p) => ({
+            gameId: game.id,
+            price: p.price,
+            source: "platprices",
+            recordedAt: new Date(p.date),
+          }));
+        if (historyRows.length > 0) await db.insert(priceHistory).values(historyRows);
 
         const prices = history.map((p) => p.price);
         await db
