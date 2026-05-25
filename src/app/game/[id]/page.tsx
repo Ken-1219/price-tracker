@@ -113,8 +113,8 @@ export default function GamePage({
   function openTelegramAlert() {
     const price = parseFloat(alertPrice);
     if (!price || price <= 0) return;
-    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-    if (!botUsername) return;
+    const botUsername =
+      process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "price_tracker_psn_bot";
     const payload = btoa(`${id}:${price}`)
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
