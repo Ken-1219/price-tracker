@@ -32,10 +32,14 @@ export async function POST(request: Request) {
     `<b>${game.title}</b>`,
     ``,
     `💰 Current price: <b>₹${currentPrice.toLocaleString("en-IN")}</b>`,
-    `🎯 Your target: ₹${alert.targetPrice.toLocaleString("en-IN")}`,
-    currentPrice <= alert.targetPrice
+    alert.targetPrice != null
+      ? `🎯 Your target: ₹${alert.targetPrice.toLocaleString("en-IN")}`
+      : `🔔 Alert type: Any price change`,
+    alert.targetPrice != null && currentPrice <= alert.targetPrice
       ? `✅ Price is at or below your target!`
-      : `⏳ Waiting for price to drop to your target.`,
+      : alert.targetPrice != null
+        ? `⏳ Waiting for price to drop to your target.`
+        : `⏳ Watching for any price change.`,
     ``,
     game.url ? `🔗 <a href="${game.url}">View on PS Store</a>` : "",
     ``,

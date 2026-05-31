@@ -65,8 +65,10 @@ export async function POST(request: Request) {
       const separatorIdx = decoded.lastIndexOf(":");
       if (separatorIdx === -1) throw new Error("Invalid payload");
       const gameId = decoded.slice(0, separatorIdx);
-      const targetPrice = parseFloat(decoded.slice(separatorIdx + 1));
-      if (!gameId || isNaN(targetPrice) || targetPrice <= 0)
+      const typeOrPrice = decoded.slice(separatorIdx + 1);
+      const isAnyChange = typeOrPrice === "any_change";
+      const targetPrice = isAnyChange ? null : parseFloat(typeOrPrice);
+      if (!gameId || (!isAnyChange && (isNaN(targetPrice!) || targetPrice! <= 0)))
         throw new Error("Invalid data");
 
       const [game] = await db
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
       await db.insert(alerts).values({
         gameId,
         telegramChatId: chatId,
+        alertType: isAnyChange ? "any_change" : "drop",
         targetPrice,
       });
 
@@ -99,9 +102,13 @@ export async function POST(request: Request) {
           "",
           `<b>${game.title}</b>`,
           `Current price: ${currentPriceStr}`,
-          `Alert when: ≤ ₹${targetPrice.toLocaleString("en-IN")}`,
+          isAnyChange
+            ? "Alert on: Any price change"
+            : `Alert when: ≤ ₹${targetPrice!.toLocaleString("en-IN")}`,
           "",
-          "I'll message you when the price drops to your target.",
+          isAnyChange
+            ? "I'll message you whenever the price changes."
+            : "I'll message you when the price drops to your target.",
           "",
           `<a href="${alertsUrl}">📋 View all your alerts</a>`,
         ].join("\n")
@@ -163,9 +170,12 @@ export async function POST(request: Request) {
     } else {
       const lines = result.map((r) => {
         const current = r.game.currentPrice?.toLocaleString("en-IN") ?? "N/A";
-        const target = r.alert.targetPrice.toLocaleString("en-IN");
+        if (r.alert.alertType === "any_change") {
+          return `• <b>${r.game.title}</b> 🔔\n  Type: Any change | Current: ₹${current}`;
+        }
+        const target = r.alert.targetPrice?.toLocaleString("en-IN") ?? "N/A";
         const status =
-          r.game.currentPrice != null && r.game.currentPrice <= r.alert.targetPrice
+          r.game.currentPrice != null && r.alert.targetPrice != null && r.game.currentPrice <= r.alert.targetPrice
             ? " ✅"
             : "";
         return `• <b>${r.game.title}</b>${status}\n  Target: ₹${target} | Current: ₹${current}`;

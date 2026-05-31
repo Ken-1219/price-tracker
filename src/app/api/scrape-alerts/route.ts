@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { games, priceHistory, alerts } from "@/db/schema";
-import { eq, and, lte, sql } from "drizzle-orm";
+import { eq, and, lte, or } from "drizzle-orm";
 import { fetchGameById } from "@/lib/scrapers/psn";
-import { sendTelegramMessage, formatPriceDropMessage } from "@/lib/telegram";
+import { sendTelegramMessage, formatPriceDropMessage, formatPriceChangeMessage } from "@/lib/telegram";
 
 export const maxDuration = 300;
 
@@ -91,7 +91,9 @@ export async function GET(request: Request) {
       console.log(`[scrape-alerts] Recorded price change for "${game.title}"`);
     }
 
-    if (previousPrice !== null && scraped.currentPrice < previousPrice) {
+    if (previousPrice !== null && scraped.currentPrice !== previousPrice) {
+      const isPriceDrop = scraped.currentPrice < previousPrice;
+
       const gameAlerts = await db
         .select()
         .from(alerts)
@@ -99,16 +101,43 @@ export async function GET(request: Request) {
           and(
             eq(alerts.gameId, game.gameId),
             eq(alerts.isActive, true),
-            lte(alerts.targetPrice, previousPrice)
+            or(
+              eq(alerts.alertType, "any_change"),
+              isPriceDrop
+                ? and(eq(alerts.alertType, "drop"), lte(alerts.targetPrice, previousPrice))
+                : undefined
+            )
           )
         );
 
-      console.log(`[scrape-alerts] Price drop on "${game.title}" — checking ${gameAlerts.length} alert(s)`);
+      console.log(`[scrape-alerts] Price ${isPriceDrop ? "drop" : "increase"} on "${game.title}" — checking ${gameAlerts.length} alert(s)`);
 
       for (const alert of gameAlerts) {
-        if (scraped.currentPrice <= alert.targetPrice) {
+        if (alert.alertType === "any_change") {
           console.log(
-            `[scrape-alerts] ALERT TRIGGERED — "${game.title}" ₹${previousPrice} → ₹${scraped.currentPrice} ` +
+            `[scrape-alerts] ANY_CHANGE ALERT — "${game.title}" ₹${previousPrice} → ₹${scraped.currentPrice} ` +
+            `(chat: ${alert.telegramChatId})`
+          );
+
+          const message = formatPriceChangeMessage(
+            scraped.title,
+            scraped.currentPrice,
+            previousPrice,
+            game.lowestPrice ?? scraped.currentPrice,
+            scraped.url
+          );
+
+          const sent = await sendTelegramMessage(alert.telegramChatId, message);
+          if (sent) {
+            await db.update(alerts).set({ lastNotified: new Date() }).where(eq(alerts.id, alert.id));
+            alertsSent++;
+            console.log(`[scrape-alerts] Telegram sent to ${alert.telegramChatId}`);
+          } else {
+            console.error(`[scrape-alerts] FAILED to send Telegram to ${alert.telegramChatId}`);
+          }
+        } else if (isPriceDrop && alert.targetPrice !== null && scraped.currentPrice <= alert.targetPrice) {
+          console.log(
+            `[scrape-alerts] DROP ALERT TRIGGERED — "${game.title}" ₹${previousPrice} → ₹${scraped.currentPrice} ` +
             `(target: ₹${alert.targetPrice}, chat: ${alert.telegramChatId})`
           );
 
@@ -120,16 +149,9 @@ export async function GET(request: Request) {
             scraped.url
           );
 
-          const sent = await sendTelegramMessage(
-            alert.telegramChatId,
-            message
-          );
-
+          const sent = await sendTelegramMessage(alert.telegramChatId, message);
           if (sent) {
-            await db
-              .update(alerts)
-              .set({ lastNotified: new Date() })
-              .where(eq(alerts.id, alert.id));
+            await db.update(alerts).set({ lastNotified: new Date() }).where(eq(alerts.id, alert.id));
             alertsSent++;
             console.log(`[scrape-alerts] Telegram sent to ${alert.telegramChatId}`);
           } else {

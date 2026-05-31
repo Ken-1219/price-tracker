@@ -56,3 +56,31 @@ export function formatPriceDropMessage(
     `🔗 <a href="${url}">View on PS Store</a>`,
   ].join("\n");
 }
+
+export function formatPriceChangeMessage(
+  title: string,
+  currentPrice: number,
+  previousPrice: number,
+  lowestPrice: number,
+  url: string
+): string {
+  const diff = currentPrice - previousPrice;
+  const isIncrease = diff > 0;
+  const absDiff = Math.abs(diff);
+  const percent = Math.round((absDiff / previousPrice) * 100);
+  const isAllTimeLow = currentPrice <= lowestPrice;
+
+  return [
+    `🎮 <b>Price ${isIncrease ? "Increase" : "Drop"} Alert!</b>`,
+    ``,
+    `<b>${title}</b>`,
+    ``,
+    `💰 ₹${previousPrice.toLocaleString("en-IN")} → <b>₹${currentPrice.toLocaleString("en-IN")}</b>`,
+    isIncrease
+      ? `📈 Up ₹${absDiff.toLocaleString("en-IN")} (+${percent}%)`
+      : `📉 Down ₹${absDiff.toLocaleString("en-IN")} (${percent}% off)`,
+    !isIncrease && isAllTimeLow ? `🏆 <b>ALL-TIME LOW PRICE!</b>` : `📊 Lowest ever: ₹${lowestPrice.toLocaleString("en-IN")}`,
+    ``,
+    `🔗 <a href="${url}">View on PS Store</a>`,
+  ].join("\n");
+}

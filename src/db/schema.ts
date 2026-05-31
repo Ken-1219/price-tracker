@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const storeEnum = pgEnum("store", ["psn", "amazon", "flipkart"]);
+export const alertTypeEnum = pgEnum("alert_type", ["drop", "any_change"]);
 
 export const games = pgTable(
   "games",
@@ -80,7 +81,8 @@ export const alerts = pgTable(
       .notNull()
       .references(() => games.id, { onDelete: "cascade" }),
     telegramChatId: text("telegram_chat_id").notNull(),
-    targetPrice: real("target_price").notNull(),
+    alertType: alertTypeEnum("alert_type").notNull().default("drop"),
+    targetPrice: real("target_price"),
     isActive: boolean("is_active").default(true),
     lastNotified: timestamp("last_notified"),
     createdAt: timestamp("created_at").defaultNow(),

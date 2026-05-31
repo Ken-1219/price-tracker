@@ -84,6 +84,7 @@ export default function GamePage({
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertPrice, setAlertPrice] = useState("");
+  const [alertType, setAlertType] = useState<"drop" | "any_change">("drop");
   const [selectedScreenshot, setSelectedScreenshot] = useState(0);
 
   const screenshots: string[] = game?.screenshots
@@ -114,6 +115,13 @@ export default function GamePage({
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "price_tracker_psn_bot";
 
   function getTelegramUrl() {
+    if (alertType === "any_change") {
+      const payload = btoa(`${id}:any_change`)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+      return `https://t.me/${botUsername}?start=${payload}`;
+    }
     const price = parseFloat(alertPrice);
     if (!price || price <= 0) return null;
     const payload = btoa(`${id}:${price}`)
@@ -408,20 +416,45 @@ export default function GamePage({
       <div className="mt-6 rounded-xl border border-border bg-card p-6">
         <h2 className="text-xl font-bold mb-4">Set Price Alert</h2>
         <p className="text-sm text-muted mb-4">
-          Get a Telegram notification when the price drops to your target.
+          Get a Telegram notification when the price changes.
         </p>
 
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <button
+            onClick={() => setAlertType("drop")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              alertType === "drop"
+                ? "bg-accent text-white"
+                : "bg-border/30 text-muted hover:bg-border/50"
+            }`}
+          >
+            Price Drop Target
+          </button>
+          <button
+            onClick={() => setAlertType("any_change")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              alertType === "any_change"
+                ? "bg-accent text-white"
+                : "bg-border/30 text-muted hover:bg-border/50"
+            }`}
+          >
+            Any Price Change
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1">
-            <span className="text-muted">₹</span>
-            <input
-              type="number"
-              placeholder="Target price"
-              value={alertPrice}
-              onChange={(e) => setAlertPrice(e.target.value)}
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm outline-none focus:border-accent w-32"
-            />
-          </div>
+          {alertType === "drop" && (
+            <div className="flex items-center gap-1">
+              <span className="text-muted">₹</span>
+              <input
+                type="number"
+                placeholder="Target price"
+                value={alertPrice}
+                onChange={(e) => setAlertPrice(e.target.value)}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm outline-none focus:border-accent w-32"
+              />
+            </div>
+          )}
           {telegramUrl ? (
             <a
               href={telegramUrl}

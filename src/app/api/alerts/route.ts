@@ -5,11 +5,18 @@ import { eq, and } from "drizzle-orm";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { gameId, telegramChatId, targetPrice } = body;
+  const { gameId, telegramChatId, targetPrice, alertType = "drop" } = body;
 
-  if (!gameId || !telegramChatId || !targetPrice) {
+  if (!gameId || !telegramChatId) {
     return NextResponse.json(
-      { error: "gameId, telegramChatId, and targetPrice are required" },
+      { error: "gameId and telegramChatId are required" },
+      { status: 400 }
+    );
+  }
+
+  if (alertType === "drop" && !targetPrice) {
+    return NextResponse.json(
+      { error: "targetPrice is required for price drop alerts" },
       { status: 400 }
     );
   }
@@ -29,7 +36,8 @@ export async function POST(request: Request) {
     .values({
       gameId,
       telegramChatId: String(telegramChatId),
-      targetPrice: parseFloat(targetPrice),
+      alertType: alertType as "drop" | "any_change",
+      targetPrice: alertType === "drop" ? parseFloat(targetPrice) : null,
     })
     .returning();
 
