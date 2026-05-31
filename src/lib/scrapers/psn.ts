@@ -116,12 +116,18 @@ export async function fetchGameById(storeId: string): Promise<ScrapedGame | null
       },
     });
 
-    if (!res.ok) {
-      console.error(`PS Store API ${res.status} for game ${storeId}`);
+    if (!res.ok || res.status === 204) {
+      console.warn(`PS Store API ${res.status} for game ${storeId} (may be delisted)`);
       return null;
     }
 
-    const data = (await res.json()) as PsnGame;
+    const text = await res.text();
+    if (!text) {
+      console.warn(`PS Store returned empty body for game ${storeId}`);
+      return null;
+    }
+
+    const data = JSON.parse(text) as PsnGame;
     if (!data || !data.id) return null;
     return parseGame(data);
   } catch (err) {

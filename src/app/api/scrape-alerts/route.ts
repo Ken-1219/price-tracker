@@ -31,16 +31,33 @@ export async function GET(request: Request) {
     activeAlerts.map((a) => [a.storeId, a])
   );
 
-  console.log(`Scraping ${uniqueGames.size} games with active alerts...`);
+  const startTime = Date.now();
+  console.log(`[scrape-alerts] Started at ${new Date().toISOString()}`);
+  console.log(`[scrape-alerts] Found ${uniqueGames.size} unique games with active alerts`);
 
   let priceChanges = 0;
   let alertsSent = 0;
+  let skipped = 0;
+  let checked = 0;
 
   for (const [storeId, game] of uniqueGames) {
     const scraped = await fetchGameById(storeId);
-    if (!scraped || scraped.currentPrice === null) continue;
+    if (!scraped || scraped.currentPrice === null) {
+      console.log(`[scrape-alerts] SKIP "${game.title}" (${storeId}) — no data from PSN`);
+      skipped++;
+      continue;
+    }
 
+    checked++;
     const previousPrice = game.currentPrice;
+    console.log(
+      `[scrape-alerts] ${checked}/${uniqueGames.size} "${game.title}" — ` +
+      `prev: ₹${previousPrice ?? "N/A"}, now: ₹${scraped.currentPrice}` +
+      (previousPrice !== null && scraped.currentPrice !== previousPrice
+        ? ` (${scraped.currentPrice < previousPrice ? "↓ DROP" : "↑ UP"})`
+        : " (no change)")
+    );
+
     const lowestPrice =
       previousPrice !== null
         ? Math.min(scraped.currentPrice, game.lowestPrice ?? Infinity)
@@ -71,6 +88,7 @@ export async function GET(request: Request) {
         discountPercent: scraped.discountPercent,
       });
       priceChanges++;
+      console.log(`[scrape-alerts] Recorded price change for "${game.title}"`);
     }
 
     if (previousPrice !== null && scraped.currentPrice < previousPrice) {
@@ -85,8 +103,15 @@ export async function GET(request: Request) {
           )
         );
 
+      console.log(`[scrape-alerts] Price drop on "${game.title}" — checking ${gameAlerts.length} alert(s)`);
+
       for (const alert of gameAlerts) {
         if (scraped.currentPrice <= alert.targetPrice) {
+          console.log(
+            `[scrape-alerts] ALERT TRIGGERED — "${game.title}" ₹${previousPrice} → ₹${scraped.currentPrice} ` +
+            `(target: ₹${alert.targetPrice}, chat: ${alert.telegramChatId})`
+          );
+
           const message = formatPriceDropMessage(
             scraped.title,
             scraped.currentPrice,
@@ -106,7 +131,15 @@ export async function GET(request: Request) {
               .set({ lastNotified: new Date() })
               .where(eq(alerts.id, alert.id));
             alertsSent++;
+            console.log(`[scrape-alerts] Telegram sent to ${alert.telegramChatId}`);
+          } else {
+            console.error(`[scrape-alerts] FAILED to send Telegram to ${alert.telegramChatId}`);
           }
+        } else {
+          console.log(
+            `[scrape-alerts] Alert not triggered — "${game.title}" now ₹${scraped.currentPrice}, ` +
+            `target ₹${alert.targetPrice} not met`
+          );
         }
       }
     }
@@ -114,14 +147,19 @@ export async function GET(request: Request) {
     await new Promise((r) => setTimeout(r, 500));
   }
 
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(
-    `Alert scrape done: ${uniqueGames.size} games, ${priceChanges} price changes, ${alertsSent} alerts sent`
+    `[scrape-alerts] Done in ${elapsed}s — ` +
+    `checked: ${checked}, skipped: ${skipped}, ` +
+    `price changes: ${priceChanges}, alerts sent: ${alertsSent}`
   );
 
   return NextResponse.json({
     success: true,
-    gamesChecked: uniqueGames.size,
+    gamesChecked: checked,
+    gamesSkipped: skipped,
     priceChanges,
     alertsSent,
+    elapsedSeconds: parseFloat(elapsed),
   });
 }
