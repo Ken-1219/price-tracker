@@ -103,6 +103,33 @@ function parseGame(game: PsnGame): ScrapedGame {
   };
 }
 
+export async function fetchGameById(storeId: string): Promise<ScrapedGame | null> {
+  const url =
+    `${BASE_URL}/container/${COUNTRY}/${LANGUAGE}/${AGE}/${storeId}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      console.error(`PS Store API ${res.status} for game ${storeId}`);
+      return null;
+    }
+
+    const data = (await res.json()) as PsnGame;
+    if (!data || !data.id) return null;
+    return parseGame(data);
+  } catch (err) {
+    console.error(`PS Store fetch failed for game ${storeId}:`, err);
+    return null;
+  }
+}
+
 export class PsnScraper implements StoreScraper {
   readonly storeName = "psn";
 
